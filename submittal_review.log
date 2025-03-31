@@ -86,3 +86,12 @@
 2025-03-31 01:46:57,847 - submittal_review - INFO - Building submittal analysis graph
 2025-03-31 01:46:57,848 - submittal_review - INFO - Analysis graph compiled successfully
 2025-03-31 01:46:58,634 - submittal_review - INFO - Loading Submittal Analysis page
+2025-03-31 02:28:28,525 - submittal_review - INFO - Starting Submittal Review Application
+2025-03-31 02:28:28,543 - submittal_review - INFO - Successfully initialized Gemini model: gemini-2.0-flash
+2025-03-31 02:28:28,547 - submittal_review - INFO - Successfully initialized Gemini model: gemini-2.0-flash
+2025-03-31 02:28:28,551 - langchain_google_genai._function_utils - WARNING - Key 'title' is not supported in schema, ignoring
+2025-03-31 02:28:28,551 - langchain_google_genai._function_utils - WARNING - Key 'title' is not supported in schema, ignoring
+2025-03-31 02:28:28,553 - submittal_review - INFO - Successfully bound tools to Gemini model
+2025-03-31 02:28:28,553 - submittal_review - INFO - Building submittal analysis graph
+2025-03-31 02:28:28,555 - submittal_review - INFO - Analysis graph compiled successfully
+2025-03-31 02:28:28,565 - submittal_review - INFO - Loading Submittal Analysis page
