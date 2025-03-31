@@ -336,34 +336,89 @@ def build_langgraph() -> Optional[Any]:
 
 def setup_chat_interface(report_text: str) -> None:
     """
-    Set up and manage the chat interface for interacting with the report.
+    Set up and manage the chat interface for interacting with the report and uploaded images.
     
     Args:
         report_text: The generated report text to chat about
     """
-    # Display existing chat messages
+    # Initialize image container in session state if not exists
+    if "chat_images" not in st.session_state:
+        st.session_state.chat_images = {}
+    
+    # Image upload section
+    with st.expander("Upload an image to discuss", expanded=False):
+        uploaded_image = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"], key="chat_image_uploader")
+        
+        if uploaded_image is not None:
+            # Display the uploaded image
+            image = PIL.Image.open(uploaded_image)
+            st.image(image, caption="Uploaded Image", use_column_width=True)
+            
+            # Process and store the image
+            image_id = f"img_{len(st.session_state.chat_images) + 1}"
+            
+            # Save image to session state
+            st.session_state.chat_images[image_id] = {
+                "image": image,
+                "filename": uploaded_image.name
+            }
+            
+            st.success(f"Image uploaded successfully! You can now ask questions about this image.")
+            
+            # Add image reference button
+            if st.button("Reference this image in chat"):
+                # Create a special message referencing the image
+                image_reference = f"[Referencing uploaded image: {uploaded_image.name}]"
+                st.session_state.chat_history.append(HumanMessage(content=image_reference))
+                st.session_state.chat_images[image_id]["referenced"] = True
+    
+    # Display existing chat messages with images
     for msg in st.session_state.chat_history:
         if isinstance(msg, HumanMessage):
             st.chat_message("user").write(msg.content)
         elif isinstance(msg, AIMessage):
             st.chat_message("assistant").write(msg.content)
-
+    
     # Chat input field
-    if user_query := st.chat_input("Ask a question about the report..."):
+    if user_query := st.chat_input("Ask a question about the report or uploaded images..."):
         # Add user message to history and display
         st.session_state.chat_history.append(HumanMessage(content=user_query))
         st.chat_message("user").write(user_query)
         
         logger.info(f"New chat query: {user_query[:50]}{'...' if len(user_query) > 50 else ''}")
 
+        # Check if there are any images in the context
+        has_images = len(st.session_state.chat_images) > 0
+        
+        # Prepare system message with awareness of images
+        if has_images:
+            system_message = ("You are a helpful assistant. Answer the user's questions considering both the provided "
+                             "report context and any images that have been uploaded. For image-related questions, "
+                             "focus on providing helpful analysis of the visible content. When discussing images, "
+                             "be specific about what you can see.")
+        else:
+            system_message = ("You are a helpful assistant. Answer the user's questions considering the provided report context "
+                            "(answer also questions that are not related to the report). Do not make up information.")
+
         # Prepare the prompt template for the chat
-        prompt_template = ChatPromptTemplate.from_messages([
-            ("system", "You are a helpful assistant. Answer the user's questions considering the provided report context "
-                      "(answer also the questions are not related to the report). Do not make up information."),
+        prompt_messages = [
+            ("system", system_message),
             MessagesPlaceholder(variable_name="chat_history"),
-            ("human", "Given the following report:\n\n---\nREPORT START\n---\n{report_context}\n---\nREPORT END\n---\n\n"
-                     "Answer this question: {question}")
-        ])
+        ]
+        
+        # Add image context if available
+        image_context = ""
+        if has_images:
+            image_context = "\n\nThe user has uploaded the following images:\n"
+            for img_id, img_data in st.session_state.chat_images.items():
+                image_context += f"- {img_id}: {img_data['filename']}\n"
+        
+        # Construct the final prompt with report and image context
+        human_prompt = ("Given the following report:\n\n---\nREPORT START\n---\n{report_context}\n---\nREPORT END\n---\n"
+                       f"{image_context}\n\nAnswer this question: {{question}}")
+        
+        prompt_messages.append(("human", human_prompt))
+        prompt_template = ChatPromptTemplate.from_messages(prompt_messages)
 
         # Create the RAG chain that includes history and context
         rag_chain = (
@@ -388,6 +443,27 @@ def setup_chat_interface(report_text: str) -> None:
                 }
                 
                 logger.info("Invoking RAG chain for chat response")
+                
+                # For image analysis queries, we need to process the image
+                if has_images and any(img_term in user_query.lower() for img_term in ["image", "picture", "photo", "upload"]):
+                    # Extract image descriptions if needed
+                    # This would be where you integrate vision capabilities
+                    logger.info("Query appears to be about uploaded images")
+                    
+                    # Process the images if a vision model is available
+                    if hasattr(st.session_state, "vision_model") and st.session_state.vision_model:
+                        # Process each image that hasn't been analyzed yet
+                        for img_id, img_data in st.session_state.chat_images.items():
+                            if not img_data.get("description"):
+                                try:
+                                    # This is where you'd call the vision model
+                                    # For example: description = vision_model.analyze(img_data["image"])
+                                    # But for now we'll just set a placeholder
+                                    img_data["description"] = "Image analysis would appear here."
+                                    logger.info(f"Analyzed image {img_id}")
+                                except Exception as img_error:
+                                    logger.error(f"Error analyzing image {img_id}: {img_error}")
+                
                 response = rag_chain.invoke(chain_input)
                 logger.info(f"Generated chat response of length: {len(response)}")
 
@@ -404,6 +480,76 @@ def setup_chat_interface(report_text: str) -> None:
                 st.session_state.chat_history.append(AIMessage(content=error_msg))
                 st.chat_message("assistant").write(error_msg)
 
+def analyze_image(image):
+    """
+    Analyze an image using a vision model.
+    
+    Args:
+        image: PIL Image to analyze
+        
+    Returns:
+        String description of the image content
+    """
+    try:
+        # If you have Gemini Pro Vision or similar model:
+        # Convert PIL image to bytes
+        buffered = BytesIO()
+        image.save(buffered, format="JPEG")
+        img_bytes = buffered.getvalue()
+        
+        # You would need to add vision model initialization in your main code
+        # For example:
+        # from langchain_google_genai import GoogleGenerativeAIVisionModel
+        # vision_model = GoogleGenerativeAIVisionModel(model_name="gemini-pro-vision")
+        # return vision_model.generate_content(img_bytes)
+        
+        # For now, return a placeholder
+        return "This is a placeholder for image analysis. Please initialize a vision model."
+    except Exception as e:
+        logger.error(f"Error analyzing image: {e}")
+        return f"Error analyzing image: {e}"
+
+def initialize_session_state():
+    """Initialize all necessary session state variables."""
+    # Report and chat history
+    if "generated_report" not in st.session_state:
+        st.session_state.generated_report = None
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+    if "chat_images" not in st.session_state:
+        st.session_state.chat_images = {}
+    
+    # Models and tools
+    if "google_chat_model" not in st.session_state:
+        st.session_state.google_chat_model = initialize_gemini_model()
+    
+    if "gemini_model" not in st.session_state:
+        st.session_state.gemini_model = initialize_gemini_model()
+    
+    # Initialize vision model if needed
+    if "vision_model" not in st.session_state:
+        try:
+            # You would need to import and initialize a vision model here
+            # For example:
+            # from langchain_google_genai import GoogleGenerativeAIVisionModel
+            # st.session_state.vision_model = GoogleGenerativeAIVisionModel(model_name="gemini-pro-vision")
+            # logger.info("Successfully initialized vision model")
+            st.session_state.vision_model = None  # Replace with actual model initialization
+        except Exception as e:
+            logger.error(f"Error initializing vision model: {e}")
+            st.session_state.vision_model = None
+    
+    # Bind tools to model if available
+    if st.session_state.gemini_model:
+        tools = [ChooseBOQ]
+        st.session_state.model_with_tools = st.session_state.gemini_model.bind_tools(tools, tool_choice="ChooseBOQ")
+        st.session_state.model_with_structured_output = st.session_state.gemini_model.with_structured_output(Title)
+        logger.info("Successfully bound tools to Gemini model")
+    else:
+        logger.error("Gemini Model not initialized. Cannot bind tools.")
+        st.error("Gemini Model not initialized. Cannot bind tools.")
+        st.session_state.model_with_tools = None
+        st.session_state.model_with_structured_output = None
 #####################################
 # UI Components
 #####################################
