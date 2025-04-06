@@ -64,7 +64,7 @@ class State(TypedDict):
 
 # --- Langchain Pydantic Models and Tools ---
 class ChooseBOQ(BaseModel):
-  boq_name: Literal["boq", "boq_Electrical", "boq_HVAC", "boq_Plumbing"] = Field(description="name of the boq to review from the provided choices")
+  boq_name: Literal["boq_FireFighting", "boq_Electrical", "boq_HVAC", "boq_Plumbing"] = Field(description="name of the boq to review from the provided choices")
 
 @tool
 class Title(BaseModel):

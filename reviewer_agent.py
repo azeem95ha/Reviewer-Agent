@@ -634,7 +634,7 @@ def submittal_analysis_page(worker: Optional[Any]) -> None:
                             final_report_text = final_state.get("final_report", "Report could not be generated.")
                             # Handle different report formats
                             if hasattr(final_report_text, 'content'):
-                                final_report_text = final_report_text.content.strip('markdown').strip()
+                                final_report_text = final_report_text.content.strip('```markdown').strip("```").strip()
                             
                             logger.info("Analysis completed successfully")
                             st.subheader("Analysis Complete")

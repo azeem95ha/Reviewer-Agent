@@ -13,12 +13,15 @@ from typing import List
 
 # --- DOCS IMPORTS --
 from docx import Document
-from docx.shared import Inches, Pt
+from docx.enum.section import WD_ORIENT
+from docx.enum.table import WD_ALIGN_VERTICAL
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.style import WD_STYLE_TYPE
-from docx.enum.section import WD_ORIENT
+from docx.shared import Inches, Pt, RGBColor
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+import markdown
+from bs4 import BeautifulSoup
 
 
 def read_pdf(file_path):
@@ -319,9 +322,15 @@ def create_docx_from_markdown(markdown_text, output_filename):
 
     Args:
         markdown_text: The markdown text to convert.
-        output_filename: The name of the output .docx file.
+        output_filename: The name of the output .docx file or a file-like object.
+        
+    Returns:
+        Path to the created document or the file-like object.
     """
-
+    # Convert markdown to HTML for better parsing
+    html = markdown.markdown(markdown_text, extensions=['tables', 'fenced_code'])
+    soup = BeautifulSoup(html, 'html.parser')
+    
     document = Document()
 
     # --- Document Setup (Landscape, Margins, Styles) ---
@@ -334,143 +343,261 @@ def create_docx_from_markdown(markdown_text, output_filename):
     section.top_margin = Inches(0.75)
     section.bottom_margin = Inches(0.75)
 
-    # Create or access a style for normal text
+    # Configure styles
+    _configure_document_styles(document)
+    
+    # Add page border
+    _add_page_border(document)
+    
+    # Parse HTML and create document content
+    _process_html_elements(soup, document)
+    
+    # Save the document
+    document.save(output_filename)
+    return output_filename
+
+
+def _configure_document_styles(document):
+    """Configure document styles for modern appearance."""
+    # Normal text style
     normal_style = document.styles['Normal']
     normal_font = normal_style.font
-    normal_font.name = 'Calibri'  # Modern font
+    normal_font.name = 'Calibri'
     normal_font.size = Pt(11)
     normal_paragraph_format = normal_style.paragraph_format
-    normal_paragraph_format.space_before = Pt(0)  # Remove space before paragraph
-    normal_paragraph_format.space_after = Pt(0)   # Remove space after paragraph
-    normal_paragraph_format.line_spacing = 1.15      # Set line spacing to 1.15 (adjust as needed)
-
-
-
-    # --- Helper Functions ---
-    def add_paragraph(text, style='Normal', alignment=None):
-        p = document.add_paragraph(text, style=style)
-        if alignment:
-            p.alignment = alignment
-        return p
-
-    def add_heading(text, level):
-        heading = document.add_heading(text, level=level)
-        heading.style.font.name = 'Calibri'
-        heading.paragraph_format.space_before = Pt(0)  # Remove space before heading
-        heading.paragraph_format.space_after = Pt(6)   # Add a little space after heading
-
-        return heading
-
-    # --- Table Style ---
+    normal_paragraph_format.space_before = Pt(0)
+    normal_paragraph_format.space_after = Pt(0)
+    normal_paragraph_format.line_spacing = 1.15
+    
+    # Heading styles
+    for level in range(1, 6):
+        heading_style_name = f'Heading {level}'
+        if heading_style_name in document.styles:
+            heading_style = document.styles[heading_style_name]
+            heading_style.font.name = 'Calibri'
+            heading_style.font.bold = True
+            heading_style.font.size = Pt(14 - level)  # Decrease size as level increases
+            heading_style.paragraph_format.space_before = Pt(12 - level)
+            heading_style.paragraph_format.space_after = Pt(6)
+    
+    # Table style
     table_style = document.styles.add_style('CustomTableStyle', WD_STYLE_TYPE.TABLE)
     table_style.base_style = document.styles['Table Grid']
-    table_style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-    # --- Add Page Border ---
-    def create_element(name):
-        return OxmlElement(name)
-
-    def create_attribute(element, name, value):
-        element.set(qn(name), value)
-
-    page_border_elm = create_element('w:pPr')
-    page_border_props = create_element('w:pBdr')
-    page_border_top = create_element('w:top')
-    create_attribute(page_border_top, 'w:val', 'single')
-    create_attribute(page_border_top, 'w:sz', '4')
-    create_attribute(page_border_top, 'w:space', '24')
-    create_attribute(page_border_top, 'w:color', 'auto')
-    page_border_props.append(page_border_top)
-
-    page_border_left = create_element('w:left')
-    create_attribute(page_border_left, 'w:val', 'single')
-    create_attribute(page_border_left, 'w:sz', '4')
-    create_attribute(page_border_left, 'w:space', '24')
-    create_attribute(page_border_left, 'w:color', 'auto')
-    page_border_props.append(page_border_left)
-
-    page_border_bottom = create_element('w:bottom')
-    create_attribute(page_border_bottom, 'w:val', 'single')
-    create_attribute(page_border_bottom, 'w:sz', '4')
-    create_attribute(page_border_bottom, 'w:space', '24')
-    create_attribute(page_border_bottom, 'w:color', 'auto')
-    page_border_props.append(page_border_bottom)
-
-    page_border_right = create_element('w:right')
-    create_attribute(page_border_right, 'w:val', 'single')
-    create_attribute(page_border_right, 'w:sz', '4')
-    create_attribute(page_border_right, 'w:space', '24')
-    create_attribute(page_border_right, 'w:color', 'auto')
-    page_border_props.append(page_border_right)
-
-    page_border_elm.append(page_border_props)
-
-    # Apply border to each paragraph in the document.  This will appear as a page border.
-    for paragraph in document.paragraphs:
-      paragraph._element.insert_element_before(page_border_elm, 'w:pPr')
+    
+    # Code style for code blocks
+    code_style = document.styles.add_style('CodeStyle', WD_STYLE_TYPE.PARAGRAPH)
+    code_style.font.name = 'Consolas'
+    code_style.font.size = Pt(10)
+    code_paragraph_format = code_style.paragraph_format
+    code_paragraph_format.space_before = Pt(6)
+    code_paragraph_format.space_after = Pt(6)
+    
+    # List style
+    list_style = document.styles.add_style('ListStyle', WD_STYLE_TYPE.PARAGRAPH)
+    list_style.base_style = document.styles['Normal']
+    list_paragraph_format = list_style.paragraph_format
+    list_paragraph_format.left_indent = Inches(0.25)
+    list_paragraph_format.first_line_indent = Inches(-0.25)
 
 
-    # --- Markdown Parsing ---
-    lines = markdown_text.splitlines()
-    i = 0
-    while i < len(lines):
-        line = lines[i].strip()
-
-        if line.startswith("## "):
-            add_heading(line[3:], level=2)
-        elif line.startswith("**"):
-            add_paragraph(line[2:].strip(), style='Normal')
-        elif line.startswith("|---"):
-            # Table detected, parse the table
-            header_line = lines[i - 1].strip()
-            data_lines = []
-            i += 1  # Skip the separator line
-            while i < len(lines) and lines[i].strip().startswith("|"):
-                data_lines.append(lines[i].strip())
-                i += 1
-            i -= 1 # Decrement i because the loop ends when it reaches a non-table line
-
-            header_cells = [cell.strip() for cell in header_line.split("|")[1:-1]]  # Remove leading/trailing pipes
-            data_rows = []
-            for data_line in data_lines:
-                data_cells = [cell.strip() for cell in data_line.split("|")[1:-1]]  # Remove leading/trailing pipes
-                data_rows.append(data_cells)
+def _add_page_border(document):
+    """Add a page border to the document."""
+    # Create the border element and attributes
+    sections = document.sections
+    for section in sections:
+        sectPr = section._sectPr
+        
+        # Create page borders element
+        pg_borders = OxmlElement('w:pgBorders')
+        pg_borders.set(qn('w:offsetFrom'), 'page')
+        
+        # Create the border elements
+        border_names = ['top', 'left', 'bottom', 'right']
+        for border_name in border_names:
+            border = OxmlElement(f'w:{border_name}')
+            border.set(qn('w:val'), 'single')
+            border.set(qn('w:sz'), '4')
+            border.set(qn('w:space'), '24')
+            border.set(qn('w:color'), 'auto')
+            pg_borders.append(border)
+        
+        # Add borders to section properties
+        sectPr.append(pg_borders)
 
 
-            table = document.add_table(rows=1, cols=len(header_cells))
-            table.style = 'CustomTableStyle'
-
-            # Add header row
-            header_cells = [h.replace('Requirement/Feature', 'Requirement') for h in header_cells] # replace Requirement/Feature with Requirement to avoid error in heading
-            for j, header_text in enumerate(header_cells):
-                cell = table.cell(0, j)
-                cell.text = header_text
-                cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER  # Center align headers
-                cell.paragraphs[0].style.font.bold = True  # Bold header text
-
-            # Add data rows
-            for row_index, row_data in enumerate(data_rows):
-                row_cells = table.add_row().cells
-                for j, cell_data in enumerate(row_data):
-                    row_cells[j].text = cell_data
-                    row_cells[j].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER  # Center align content
-
-            # Adjust column widths for better readability (optional)
-            for col in table.columns:
-                for cell in col.cells:
-                    cell.width = Inches(1.5)  # Adjust width as needed
-                    for paragraph in cell.paragraphs:
-                        paragraph.style.font.name = 'Cambria' # Apply Calibri font to table content
-                        paragraph.paragraph_format.space_before = Pt(0) #Remove space before paragraph
-                        paragraph.paragraph_format.space_after = Pt(0) #Remove space after paragraph
-                        paragraph.paragraph_format.line_spacing = 1.15 #set line spacing to 1.15
+def _process_html_elements(soup, document):
+    """Process HTML elements and convert them to Word document elements."""
+    # Process the body content
+    if soup.body:
+        for element in soup.body.contents:
+            _process_element(element, document)
+    else:
+        # If no body found, process all top-level elements
+        for element in soup.contents:
+            _process_element(element, document)
 
 
+def _process_element(element, document):
+    """Process a single HTML element and its children."""
+    # Skip if element is just a newline or whitespace
+    if element.name is None:  # It's a NavigableString
+        if element.strip():  # Only add non-empty strings
+            p = document.add_paragraph(style='Normal')
+            p.add_run(element.strip())
+        return
+    
+    tag_name = element.name
+    
+    if tag_name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+        level = int(tag_name[1])
+        heading = document.add_heading(element.get_text(), level=level)
+        
+    elif tag_name == 'p':
+        if element.find('code') and len(list(element.children)) == 1:
+            # This is probably a code block
+            p = document.add_paragraph(style='CodeStyle')
+            p.add_run(element.get_text().strip())
         else:
-            add_paragraph(line)
+            p = document.add_paragraph(style='Normal')
+            # Process inline formatting
+            _process_inline_elements(element, p)
+            
+    elif tag_name == 'ul' or tag_name == 'ol':
+        _process_list(element, document)
+        
+    elif tag_name == 'table':
+        _process_table(element, document)
+        
+    elif tag_name == 'pre':
+        # Code block
+        code_text = element.get_text().strip()
+        p = document.add_paragraph(style='CodeStyle')
+        p.add_run(code_text)
+        
+    elif tag_name == 'hr':
+        document.add_paragraph('_' * 50, style='Normal')
+        
+    elif tag_name == 'blockquote':
+        for child in element.contents:
+            if child.name:
+                _process_element(child, document)
+            elif child.string and child.string.strip():
+                p = document.add_paragraph(style='Normal')
+                p.paragraph_format.left_indent = Inches(0.5)
+                p.add_run(child.string.strip())
+    
+    # Process any other child elements recursively
+    elif tag_name not in ['ul', 'ol', 'table', 'pre', 'blockquote']:
+        # Safely process children by checking if they exist
+        if hasattr(element, 'contents'):
+            for child in element.contents:
+                _process_element(child, document)
 
-        i += 1
 
-    # --- Save the document ---
-    document.save(output_filename)
-    return 
+def _process_inline_elements(html_element, paragraph):
+    """Process inline formatting within paragraphs."""
+    for content in html_element.contents:
+        if content.name:
+            # This is a tag
+            tag_name = content.name
+            text = content.get_text()
+            
+            if tag_name == 'strong' or tag_name == 'b':
+                run = paragraph.add_run(text)
+                run.bold = True
+            elif tag_name == 'em' or tag_name == 'i':
+                run = paragraph.add_run(text)
+                run.italic = True
+            elif tag_name == 'code':
+                run = paragraph.add_run(text)
+                run.font.name = 'Consolas'
+                run.font.size = Pt(10)
+            elif tag_name == 'a':
+                run = paragraph.add_run(text)
+                run.underline = True
+                run.font.color.rgb = RGBColor(0, 0, 255)
+            else:
+                # Unknown tag, just add the text
+                paragraph.add_run(text)
+        else:
+            # This is just text
+            if content.string and content.string.strip():
+                paragraph.add_run(content.string)
+
+
+def _process_list(list_element, document):
+    """Process lists (ordered and unordered)."""
+    is_ordered = list_element.name == 'ol'
+    
+    for i, li in enumerate(list_element.find_all('li', recursive=False)):
+        p = document.add_paragraph(style='ListStyle')
+        prefix = f"{i+1}. " if is_ordered else "• "
+        p.add_run(prefix)
+        
+        # Process the content of the list item
+        for content in li.contents:
+            if hasattr(content, 'name') and content.name:
+                if content.name in ['ul', 'ol']:
+                    # Nested list
+                    _process_list(content, document)
+                else:
+                    # Other tags
+                    _process_inline_elements(content, p)
+            else:
+                # Text content
+                if content.string and content.string.strip():
+                    p.add_run(content.string)
+
+
+def _process_table(table_element, document):
+    """Process HTML tables."""
+    # Get rows
+    rows = table_element.find_all('tr')
+    if not rows:
+        return
+    
+    # Count columns based on the first row
+    header_cells = rows[0].find_all(['th', 'td'])
+    col_count = len(header_cells)
+    
+    # Create the table
+    table = document.add_table(rows=1, cols=col_count)
+    table.style = 'CustomTableStyle'
+    
+    # Process header row
+    header_row = table.rows[0]
+    for i, cell in enumerate(header_cells):
+        if i < col_count:  # Protection against malformed tables
+            header_row.cells[i].text = cell.get_text().strip()
+            header_row.cells[i].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            for run in header_row.cells[i].paragraphs[0].runs:
+                run.bold = True
+                run.font.name = 'Calibri'
+    
+    # Process data rows
+    for row_idx, row in enumerate(rows[1:], 1):
+        data_cells = row.find_all('td')
+        if not data_cells:
+            continue
+            
+        # Add a new row
+        table_row = table.add_row()
+        
+        # Fill the cells
+        for i, cell in enumerate(data_cells):
+            if i < col_count:  # Protection against malformed tables
+                table_row.cells[i].text = cell.get_text().strip()
+                table_row.cells[i].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for run in table_row.cells[i].paragraphs[0].runs:
+                    run.font.name = 'Calibri'
+    
+    # Format table
+    for row in table.rows:
+        row.height = Pt(24)
+        for cell in row.cells:
+            cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+            # Apply consistent formatting to paragraphs in cells
+            for paragraph in cell.paragraphs:
+                paragraph.paragraph_format.space_before = Pt(0)
+                paragraph.paragraph_format.space_after = Pt(0)
+                paragraph.paragraph_format.line_spacing = 1.15
