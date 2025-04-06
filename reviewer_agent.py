@@ -352,7 +352,7 @@ def setup_chat_interface(report_text: str) -> None:
         if uploaded_image is not None:
             # Display the uploaded image
             image = PIL.Image.open(uploaded_image)
-            st.image(image, caption="Uploaded Image", use_column_width=True)
+            st.image(image, caption="Uploaded Image", use_container_width=True)
             
             # Process and store the image
             image_id = f"img_{len(st.session_state.chat_images) + 1}"
@@ -559,7 +559,7 @@ def setup_sidebar() -> None:
     # Load and display logo
     try:
         image = PIL.Image.open(LOGO_PATH)
-        st.sidebar.image(image, use_column_width=True)
+        st.sidebar.image(image, use_container_width=True)
     except Exception as e:
         logger.warning(f"Could not load logo: {e}")
     
