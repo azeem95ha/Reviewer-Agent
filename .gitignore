@@ -101,8 +101,7 @@ tmp/
 # Data
 data/
 
-# Ignore Streamlit secrets file
-*.toml
+
 
 # Vectorstores
 vectorestores/
