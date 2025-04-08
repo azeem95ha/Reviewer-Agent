@@ -101,6 +101,9 @@ tmp/
 # Data
 data/
 
+# Ignore Streamlit secrets file
+./secrets.toml
+
 # Vectorstores
 vectorestores/
 
