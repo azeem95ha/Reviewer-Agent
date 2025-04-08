@@ -38,7 +38,7 @@ GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY")
 
 # Constants
 VECTORSTORE_PATH = "vectorestores/mzdb"
-DEFAULT_BOQ_COLLECTION = "boq"
+DEFAULT_BOQ_COLLECTION = "boq_FireFighting"
 DEFAULT_SPECS_COLLECTION = "specifications"
 LOGO_PATH = "logo.png"
 
