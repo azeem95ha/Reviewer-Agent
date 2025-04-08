@@ -33,8 +33,8 @@ logger = logging.getLogger("submittal_review")
 
 # Load environment variables
 load_dotenv()
-GEMINI_MODEL_NAME = st.secrets.get("GEMINI_MODEL_NAME")
-GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY")
+GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # Constants
 VECTORSTORE_PATH = "vectorestores/mzdb"
@@ -50,7 +50,7 @@ def initialize_gemini_model():
     """Initialize and return the Google Gemini model."""
     try:
         from langchain_google_genai import ChatGoogleGenerativeAI
-        model = ChatGoogleGenerativeAI(temperature=0.7, model=GEMINI_MODEL_NAME)
+        model = ChatGoogleGenerativeAI(temperature=0.7, model=GEMINI_MODEL_NAME,google_api_key=GOOGLE_API_KEY)
         logger.info(f"Successfully initialized Gemini model: {GEMINI_MODEL_NAME}")
         return model
     except ImportError:
