@@ -33,8 +33,8 @@ logger = logging.getLogger("submittal_review")
 
 # Load environment variables
 load_dotenv()
-GEMINI_MODEL_NAME = st.secrets.get("GOOGLE_API_KEY")
-GOOGLE_API_KEY = st.secrets.get("GEMINI_MODEL_NAME")
+GEMINI_MODEL_NAME = st.secrets.get("GEMINI_MODEL_NAME")
+GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY")
 
 # Constants
 VECTORSTORE_PATH = "vectorestores/mzdb"
