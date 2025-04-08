@@ -163,27 +163,25 @@ def filter_chromadb_query_results(results,degree):
     return filtered_results
 
 
-def retrieve_from_vectorstore(persistent_path, boq_collection_name, specs_collection_name,summarized_text):
-  client = PersistentClient(persistent_path,settings=Settings(anonymized_telemetry=False))
+def retrieve_from_vectorstore(persistent_path:str, boq_collection_name: str, specs_collection_name: str,summarized_text: str):
+  client = PersistentClient(persistent_path)
   boq_collection = client.get_collection(name=boq_collection_name)
   specs_collection = client.get_collection(name=specs_collection_name)
   query_text = summarized_text
 
   results_specs = specs_collection.query(
       query_texts=[query_text],
-      n_results=10,
+      n_results=10
   )
 
   results_boq = boq_collection.query(
       query_texts=[query_text],
-      n_results=3,
+      n_results=4,
 
   )
 
-  filtered_results_boq = filter_chromadb_query_results(results_boq,1.3)
-  filtered_results_specs = filter_chromadb_query_results(results_specs,1.3)
-  query_boq_text = [filtered_results_boq[i]["document"] for i in range(len(filtered_results_boq))]
-  query_specs_text = [filtered_results_specs[i]["document"] for i in range(len(filtered_results_specs))]
+  query_boq_text = [results_boq['documents'][0][i] for i in range(len(results_boq['documents'][0]))]
+  query_specs_text = [results_specs['documents'][0][i] for i in range(len(results_specs['documents'][0]))]
   return query_boq_text, query_specs_text
 
 def datasheet_content(data_sheet_file_path, model):

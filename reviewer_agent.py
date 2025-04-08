@@ -37,9 +37,9 @@ GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # Constants
-VECTORSTORE_PATH = "vectorestores/chromadb"
+VECTORSTORE_PATH = "vectorestores/mzdb"
 DEFAULT_BOQ_COLLECTION = "boq"
-DEFAULT_SPECS_COLLECTION = "specifications_MEP"
+DEFAULT_SPECS_COLLECTION = "specifications"
 LOGO_PATH = "logo.png"
 
 #####################################

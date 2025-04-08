@@ -88,6 +88,7 @@ jupyter_execute/
 .env
 venv/
 env/
+.venv/
 
 # IDE
 .idea/
