@@ -1,3 +1,24 @@
+# streamlit_app.py (or your main script)
+
+# --- Start of SQLite fix for ChromaDB ---
+# Check if running in a Streamlit hosted environment (like Community Cloud)
+# or a Linux environment where system sqlite3 might be too old
+import platform
+if platform.system() == 'Linux':
+    try:
+        # This trick swaps the system's sqlite3 library with the one packaged
+        # by pysqlite3-binary during runtime. Must happen before any module
+        # imports sqlite3.
+        __import__('pysqlite3')
+        import sys
+        sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+        print("Successfully replaced sqlite3 with pysqlite3-binary.") # Optional: for logging/debugging
+    except ImportError:
+        print("pysqlite3-binary not found, using system sqlite3.") # Optional: for logging/debugging
+    except KeyError:
+         # Handles edge case where 'pysqlite3' might already be 'sqlite3'
+        pass
+# --- End of SQLite fix --
 from reviewer_agent import (
     initialize_session_state,
     logger,
