@@ -157,7 +157,7 @@ def decide_boq(state: State) -> Dict[str, Any]:
             st.warning("Submittal text is empty. Using default BOQ")
         else:
             # Use LLM to determine the appropriate BOQ
-            prompt = f"Choose the single most relevant BOQ discipline (boq_FireFighting, boq_Electrical, boq_HVAC, boq_Plumbing) for the following datasheet text: {submittal_text}"
+            prompt = f"Choose the single most relevant BOQ discipline for the following datasheet text: {submittal_text}"
             logger.info(f"Invoking LLM for BOQ decision with text length: {len(submittal_text)}")
             
             tool_call = st.session_state.model_with_tools.invoke(prompt).tool_calls[0]
