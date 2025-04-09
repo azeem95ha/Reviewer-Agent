@@ -3,7 +3,7 @@
 # --- Start of SQLite fix for ChromaDB ---
 # Check if running in a Streamlit hosted environment (like Community Cloud)
 # or a Linux environment where system sqlite3 might be too old
-'''import platform
+import platform
 if platform.system() == 'Linux':
     try:
         # This trick swaps the system's sqlite3 library with the one packaged
@@ -18,7 +18,7 @@ if platform.system() == 'Linux':
     except KeyError:
          # Handles edge case where 'pysqlite3' might already be 'sqlite3'
         pass
-# --- End of SQLite fix --'''
+# --- End of SQLite fix --
 from reviewer_agent import (
     initialize_session_state,
     logger,
