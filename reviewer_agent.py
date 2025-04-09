@@ -132,24 +132,31 @@ def decide_boq(state: State) -> Dict[str, Any]:
     Returns:
         Dictionary with selected BOQ and specs collection names
     """
+    # Initialize default values
+    boq_collection_name = DEFAULT_BOQ_COLLECTION
+    specs_collection_name = DEFAULT_SPECS_COLLECTION
+    
     # Skip if previous error occurred
     if state.get("error_message"):
         logger.warning("Skipping BOQ decision due to previous error")
-        return {}
+        return {
+            "boq_collection": boq_collection_name,
+            "specs_collection": specs_collection_name,
+            "error_message": state.get("error_message")
+        }
     
     # Check if model is available
-    if not st.session_state.model_with_tools:
-        logger.error("BOQ model not available")
+    if not st.session_state.get("model_with_tools"):
+        error_msg = "BOQ model not available"
+        logger.error(error_msg)
         return {
-            "boq_collection": "Model Error", 
-            "specs_collection": "Model Error", 
-            "error_message": "BOQ model not available"
+            "boq_collection": "Model Error",
+            "specs_collection": "Model Error",
+            "error_message": error_msg
         }
-
+    
     st.info("Deciding relevant BOQ discipline...")
-    submittal_text = state["submittal_text"]
-    boq_collection_name = DEFAULT_BOQ_COLLECTION
-    specs_collection_name = DEFAULT_SPECS_COLLECTION
+    submittal_text = state.get("submittal_text", "")
     
     try:
         if not submittal_text:
@@ -160,26 +167,36 @@ def decide_boq(state: State) -> Dict[str, Any]:
             prompt = f"Choose the single most relevant BOQ discipline for the following datasheet text: {submittal_text}"
             logger.info(f"Invoking LLM for BOQ decision with text length: {len(submittal_text)}")
             
-            tool_call = st.session_state.model_with_tools.invoke(prompt).tool_calls[0]
-            boq_collection_name = tool_call['args']['boq_name']
-            logger.info(f"Selected BOQ: {boq_collection_name}")
+            response = st.session_state.model_with_tools.invoke(prompt)
             
-        return {
-            "boq_collection": boq_collection_name, 
-            "specs_collection": specs_collection_name, 
-            "error_message": None
-        }
-    except Exception as e:
-        logger.error(f"Error deciding BOQ: {e}. Using default: {boq_collection_name}")
-        st.error(f"Error deciding BOQ: {e}. Using default: {boq_collection_name}")
+            # Safely handle the response
+            if hasattr(response, 'tool_calls') and response.tool_calls:
+                tool_call = response.tool_calls[0]
+                if isinstance(tool_call, dict) and 'args' in tool_call and 'boq_name' in tool_call['args']:
+                    boq_collection_name = tool_call['args']['boq_name']
+                    logger.info(f"Selected BOQ: {boq_collection_name}")
+                else:
+                    logger.warning("Invalid tool call format. Using default BOQ")
+            else:
+                logger.warning("No tool calls in response. Using default BOQ")
         
-        # Fallback to default if LLM fails
+    except Exception as e:
+        error_msg = f"Error deciding BOQ: {str(e)}"
+        logger.error(f"{error_msg}. Using default: {boq_collection_name}")
+        st.error(f"{error_msg}. Using default: {boq_collection_name}")
+        
         return {
-            "boq_collection": boq_collection_name, 
-            "specs_collection": specs_collection_name, 
-            "error_message": f"BOQ decision failed: {e}"
+            "boq_collection": boq_collection_name,
+            "specs_collection": specs_collection_name,
+            "error_message": f"BOQ decision failed: {str(e)}"
         }
-
+    
+    # Successfully determined BOQ (or using default)
+    return {
+        "boq_collection": boq_collection_name,
+        "specs_collection": specs_collection_name,
+        "error_message": None
+    }
 
 def retriever(state: State) -> Dict[str, Any]:
     """
