@@ -124,7 +124,7 @@ def datasheet_extractor(state: State) -> Dict[str, Any]:
     return {"submittal_text": submittal_text, "error_message": None}
 
 
-'''def decide_boq(state: State) -> Dict[str, Any]:
+def decide_boq(state: State) -> Dict[str, Any]:
     """
     Determine the most relevant BOQ discipline based on submittal text.
     
@@ -198,7 +198,7 @@ def datasheet_extractor(state: State) -> Dict[str, Any]:
         "boq_collection": boq_collection_name,
         "specs_collection": specs_collection_name,
         "error_message": None
-    }'''
+    }
 
 def retriever(state: State) -> Dict[str, Any]:
     """
@@ -330,14 +330,14 @@ def build_langgraph() -> Optional[Any]:
         
         # Add nodes
         graph_builder.add_node("Extractor", datasheet_extractor)
-        #graph_builder.add_node("ChooseBOQ", decide_boq)
+        graph_builder.add_node("ChooseBOQ", decide_boq)
         graph_builder.add_node("Retriever", retriever)
         graph_builder.add_node("ReportGenerator", report_generator)
         
         # Connect the graph
         graph_builder.add_edge(START, "Extractor")
-        graph_builder.add_edge("Extractor", "Retriever")
-        #graph_builder.add_edge("ChooseBOQ", "Retriever")
+        graph_builder.add_edge("Extractor", "ChooseBOQ")
+        graph_builder.add_edge("ChooseBOQ", "Retriever")
         graph_builder.add_edge("Retriever", "ReportGenerator")
         graph_builder.add_edge("ReportGenerator", END)
         
@@ -600,6 +600,7 @@ def submittal_analysis_page(worker: Optional[Any]) -> None:
     Args:
         worker: The compiled LangGraph worker
     """
+    st.badge("Analysis Agent", icon=":material/analytics:")
     st.title("Submittal Review Agent")
     st.markdown("Enter the file path of the submittal datasheet to generate a review report.")
     
@@ -706,6 +707,7 @@ def data_storing_page(archiver: Optional[Any]) -> None:
     Args:
         archiver: The compiled LangGraph worker responsible for archiving/storing data.
     """
+    st.badge("Archive",color="blue",icon=":material/archive:")
     st.title("Data Archiving Service")
     st.markdown("Upload a file to store it in the designated archive or database.")
 
