@@ -171,7 +171,7 @@ def retrieve_from_vectorstore(persistent_path:str, boq_collection_name: str, spe
 
   results_specs = specs_collection.query(
       query_texts=[query_text],
-      n_results=10
+      n_results=5
   )
 
   results_boq = boq_collection.query(
