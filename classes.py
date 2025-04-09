@@ -1,8 +1,19 @@
-from typing import Annotated, Optional,Literal,List, TypedDict
+from typing import Annotated, Any, Dict, Optional,Literal,List, TypedDict
 from pydantic import BaseModel, Field
 from langchain.tools import tool
 
+class StoreState(TypedDict):
+    data: Optional[str]
+    file_path: Optional[str]
+    file_name:Optional[str]
+    sheet_name:Optional[str]
+    collection_name:Optional[str]
+    original_filename: Optional[str]
+    metadata: Optional[Dict[str, Any]]
+    error_message:Optional[str]
+    next_node: str
 
+    
 class SubmittalPage(BaseModel):
   source: str
   page_num: int

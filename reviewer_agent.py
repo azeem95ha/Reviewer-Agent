@@ -6,6 +6,7 @@ from io import BytesIO
 from typing import Dict, List, Optional, Any, Tuple
 
 # External library imports
+import pandas as pd
 import streamlit as st
 import PIL.Image
 from langgraph.graph import StateGraph, START, END
@@ -17,8 +18,9 @@ from dotenv import load_dotenv
 from docx import Document
 
 # Local imports
-from classes import State, Title, ChooseBOQ
+from classes import *
 from helpers import datasheet_content, retrieve_from_vectorstore, generate_report, create_docx_from_markdown
+import helpers
 
 # Setup logging
 logging.basicConfig(
@@ -583,7 +585,8 @@ def setup_sidebar() -> None:
     
     # Navigation section
     st.sidebar.title("Navigation")
-    app_mode = st.sidebar.radio("Choose a section:", ("Submittal Analysis", "Chat with Report"))
+    app_mode = st.sidebar.radio("Choose a section:", ("Submittal Analysis", "Chat with Report","Adding new data"))
+
     
     # Footer
     st.sidebar.markdown("---")
@@ -696,6 +699,132 @@ def submittal_analysis_page(worker: Optional[Any]) -> None:
     elif worker is None:
         st.error("Analysis engine could not be initialized. Please check API keys and configurations.")
 
+def data_storing_page(archiver: Optional[Any]) -> None:
+    """
+    Render the data storing page interface.
+
+    Args:
+        archiver: The compiled LangGraph worker responsible for archiving/storing data.
+    """
+    st.title("Data Archiving Service")
+    st.markdown("Upload a file to store it in the designated archive or database.")
+
+    # Allow uploading various common data file types, adjust as needed
+    uploaded_file = st.file_uploader("Choose a file to archive", type=["pdf", "csv", "json", "txt", "docx","xlsx"])
+
+    # Archive button
+    button_disabled = (archiver is None or uploaded_file is None)
+    if st.button("Archive File", key="archive_button", disabled=button_disabled):
+        if uploaded_file is not None:
+            # Use tempfile to handle temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1], dir="temp") as temp_file:
+                temp_file.write(uploaded_file.getbuffer())
+                file_path = temp_file.name
+
+            logger.info(f"Starting archiving process for file: {file_path}")
+
+            if not os.path.exists(file_path):
+                logger.error(f"Temporary file not found after creation: {file_path}")
+                st.error(f"Error: Could not process the uploaded file.")
+                # Clean up attempt even on error
+                if os.path.exists(file_path):
+                     try:
+                         os.remove(file_path)
+                     except Exception as cleanup_error:
+                         logger.warning(f"Error cleaning up file {file_path} after processing error: {cleanup_error}")
+                return
+
+            elif archiver is None:
+                logger.error("Archiving worker is not compiled")
+                st.error("Archiving service is not available. Cannot store file.")
+                # Clean up temp file if archiver is missing post-upload
+                if os.path.exists(file_path):
+                     try:
+                         os.remove(file_path)
+                     except Exception as cleanup_error:
+                         logger.warning(f"Error cleaning up file {file_path} after archiver check: {cleanup_error}")
+                return
+
+            else:
+                st.write(f"Starting archival for: {uploaded_file.name}")
+                # Prepare the initial state for the archiver
+                # Adjust this state based on what the archiver worker expects
+                if uploaded_file.name.split(".")[-1] == "xlsx":
+                    initial_state = {
+                        "file_path": file_path,
+                        "file_name": uploaded_file.name,
+                        "metadata": { # Optional: Add any relevant metadata
+                            "upload_time": st.session_state.get("upload_time", "unknown"), # Example metadata
+                            "user": st.session_state.get("user", "anonymous") # Example metadata
+                        },
+                        "collection_name": "test_archive", # Example: Specify where to store it
+                        "error_message": None
+                    }
+                elif uploaded_file.name.split(".")[-1] == "pdf":
+                    initial_state ={
+                        "file_path": file_path,
+                        "file_name": uploaded_file.name,
+                        "metadata": {
+                            "upload_time": st.session_state.get("upload_time", "unknown"),
+                            "user": st.session_state.get("user", "anonymous")
+                        },
+                        "collection_name": "test_archive",
+                        "error_message": None
+                    }
+
+                try:
+                    with st.spinner("Storing file... Please wait."):
+                        # You might not need to clear session state like in the analysis page
+                        # st.session_state.generated_report = None # Unlikely needed
+                        # st.session_state.chat_history = [] # Unlikely needed
+
+                        # Run the archiver graph
+                        logger.info("Invoking archiving worker")
+                        final_state = archiver.invoke(initial_state)
+
+                        # Check for errors reported by the archiver
+                        if final_state.get("error_message"):
+                            error_msg = final_state.get("error_message")
+                            logger.error(f"Archiving failed: {error_msg}")
+                            st.error(f"Archiving failed: {error_msg}")
+                        # Check for a success message or status
+                        elif final_state.get("status_message"):
+                            success_msg = final_state.get("status_message")
+                            logger.info(f"Archiving completed successfully: {success_msg}")
+                            st.success(f"Archiving successful: {success_msg}")
+                            # Optionally store confirmation details in session state if needed elsewhere
+                            st.session_state.last_archive_status = success_msg
+                            st.session_state.last_archived_file = uploaded_file.name
+                        else:
+                            # Fallback if no specific error or success message is found
+                            logger.warning("Archiving process finished, but no specific status message was returned.")
+                            st.info("Archiving process finished.")
+
+                    # Display confirmation (already done via st.success/st.error)
+                    # No report generation or download button needed typically for storage
+
+                except Exception as e:
+                    logger.error(f"Unexpected error during archiving execution: {e}", exc_info=True)
+                    st.error(f"An unexpected error occurred during the archiving process: {e}")
+                    st.exception(e) # Shows detailed traceback in the app during development
+
+                finally:
+                    # Clean up the temporary file in all cases after processing attempt
+                    if os.path.exists(file_path):
+                        try:
+                            os.remove(file_path)
+                            logger.info(f"Removed temporary file: {file_path}")
+                        except Exception as cleanup_error:
+                            logger.error(f"Error cleaning up temporary file {file_path}: {cleanup_error}")
+
+        else:
+            st.warning("Please upload a file to archive.")
+
+    elif archiver is None:
+        # Error message shown if the archiver wasn't available on page load
+        st.error("Archiving service could not be initialized. Please check configurations.")
+        
+
 def chat_with_report_page() -> None:
     """Render the chat interface for interacting with the generated report."""
     st.title("Chat with Generated Report")
@@ -710,3 +839,65 @@ def chat_with_report_page() -> None:
     else:
         logger.info("Setting up chat interface")
         setup_chat_interface(st.session_state.generated_report)
+
+
+def _excel_data_processor(state:StoreState) -> Dict[str, Any]:
+    excel_data_df = helpers.read_boq(state['file_path'], state['sheet_name'])
+    processed_data = helpers.process_data(excel_data_df)
+    grouped_df = helpers.group_boq_items(processed_data)
+    extracted_data = helpers.extract_boq_data(grouped_df)
+
+    return {
+        "data": extracted_data
+    }
+
+def _pdf_data_processor(state:StoreState) -> Dict[str, Any]:
+    extracted_data = helpers.extract_data_from_doc(state['file_path'])
+    return {
+        "data": extracted_data
+    }
+    
+def _save_excel_data_to_collection(state:StoreState) -> None:
+
+    helpers.save_boq_to_collection(state['data'],"vectorestores/mzdb",state["collection_name"])
+
+def _save_pdf_data_to_collection(state:StoreState) -> None:
+
+    helpers.save_pdf_to_collection(state['data'],"vectorestores/mzdb",state["collection_name"])
+
+def _which_file_type(state:StoreState):
+    if state["file_name"].split(".")[-1] == "xlsx":
+        return {"next_node": "ExcelDataProcessor"} # Return a dictionary with the next node name
+    elif state["file_name"].split(".")[-1] == "pdf":
+        return {"next_node": "PdfDataProcessor"} # Return a dictionary with the next node name
+    else:
+        return END
+        
+
+def add_to_store_graph():
+    
+    graph = StateGraph(StoreState)
+
+    #Nodes
+    graph.add_node("DecideFileType", _which_file_type)
+    graph.add_node("ExcelDataProcessor", _excel_data_processor)
+    graph.add_node("SavePDFToCollection", _save_pdf_data_to_collection)
+    graph.add_node("SaveExcelToCollection", _save_excel_data_to_collection)
+    graph.add_node("PdfDataProcessor", _pdf_data_processor)
+    
+
+
+    #Edges
+    graph.add_edge(START, "DecideFileType")
+    graph.add_edge("ExcelDataProcessor", "SaveExcelToCollection")
+    graph.add_edge("PdfDataProcessor", "SavePDFToCollection")
+    graph.add_edge("SaveExcelToCollection",END)
+    graph.add_edge("SavePDFToCollection",END)
+    graph.add_conditional_edges("DecideFileType", lambda state: state["next_node"], # Update to access the correct key
+                                {
+                                    "ExcelDataProcessor": "ExcelDataProcessor",
+                                    "PdfDataProcessor": "PdfDataProcessor"
+                                })  
+
+
+    return graph.compile()

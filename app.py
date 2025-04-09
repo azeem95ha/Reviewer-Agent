@@ -20,12 +20,14 @@ if platform.system() == 'Linux':
         pass
 # --- End of SQLite fix --
 from reviewer_agent import (
+    data_storing_page,
     initialize_session_state,
     logger,
     build_langgraph,
     setup_sidebar,
     submittal_analysis_page,
-    chat_with_report_page
+    chat_with_report_page,
+    add_to_store_graph
 )
 
 
@@ -42,6 +44,7 @@ def main():
     
     # Build the graph
     worker = build_langgraph()
+    archiver = add_to_store_graph()
     
     # Setup the sidebar and get the selected mode
     app_mode = setup_sidebar()
@@ -53,6 +56,10 @@ def main():
     elif app_mode == "Chat with Report":
         logger.info("Loading Chat with Report page")
         chat_with_report_page()
+    elif app_mode == "Adding new data":
+        logger.info("Loading Adding new data page")
+        data_storing_page(archiver)
+        
 
 if __name__ == "__main__":
     main()
