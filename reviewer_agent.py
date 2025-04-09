@@ -37,7 +37,7 @@ GEMINI_MODEL_NAME = st.secrets.get("GEMINI_MODEL_NAME")
 GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY")
 
 # Constants
-VECTORSTORE_PATH = "vectorestores/mzdb"
+VECTORSTORE_PATH = "vectorestores/chromadb"
 DEFAULT_BOQ_COLLECTION = "boq_FireFighting"
 DEFAULT_SPECS_COLLECTION = "specifications"
 LOGO_PATH = "logo.png"
