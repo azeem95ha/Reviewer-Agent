@@ -164,7 +164,7 @@ def filter_chromadb_query_results(results,degree):
 
 
 def retrieve_from_vectorstore(persistent_path:str, boq_collection_name: str, specs_collection_name: str,summarized_text: str):
-  settings = Settings(anonymized_telemetry=False)
+  settings = Settings(anonymized_telemetry=False,allow_reset=True)
   client = PersistentClient(persistent_path,settings=settings)
   boq_collection = client.get_collection(name=boq_collection_name)
   specs_collection = client.get_collection(name=specs_collection_name)
