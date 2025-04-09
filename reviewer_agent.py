@@ -122,7 +122,7 @@ def datasheet_extractor(state: State) -> Dict[str, Any]:
     return {"submittal_text": submittal_text, "error_message": None}
 
 
-def decide_boq(state: State) -> Dict[str, Any]:
+'''def decide_boq(state: State) -> Dict[str, Any]:
     """
     Determine the most relevant BOQ discipline based on submittal text.
     
@@ -196,7 +196,7 @@ def decide_boq(state: State) -> Dict[str, Any]:
         "boq_collection": boq_collection_name,
         "specs_collection": specs_collection_name,
         "error_message": None
-    }
+    }'''
 
 def retriever(state: State) -> Dict[str, Any]:
     """
@@ -212,6 +212,7 @@ def retriever(state: State) -> Dict[str, Any]:
     if state.get("error_message"):
         logger.warning("Skipping document retrieval due to previous error")
         return {}
+    
     
     st.info("Retrieving documents from vector store...")
     boq_collection_name = state.get("boq_collection", DEFAULT_BOQ_COLLECTION)
@@ -327,14 +328,14 @@ def build_langgraph() -> Optional[Any]:
         
         # Add nodes
         graph_builder.add_node("Extractor", datasheet_extractor)
-        graph_builder.add_node("ChooseBOQ", decide_boq)
+        #graph_builder.add_node("ChooseBOQ", decide_boq)
         graph_builder.add_node("Retriever", retriever)
         graph_builder.add_node("ReportGenerator", report_generator)
         
         # Connect the graph
         graph_builder.add_edge(START, "Extractor")
-        graph_builder.add_edge("Extractor", "ChooseBOQ")
-        graph_builder.add_edge("ChooseBOQ", "Retriever")
+        graph_builder.add_edge("Extractor", "Retriever")
+        #graph_builder.add_edge("ChooseBOQ", "Retriever")
         graph_builder.add_edge("Retriever", "ReportGenerator")
         graph_builder.add_edge("ReportGenerator", END)
         
