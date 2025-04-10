@@ -2,6 +2,10 @@ from typing import Annotated, Any, Dict, Optional,Literal,List, TypedDict
 from pydantic import BaseModel, Field
 from langchain.tools import tool
 
+class ComparisonFeatures(BaseModel):
+    """Extract the Comaprison features from text and return a list of features."""
+    features: List[str]
+
 class StoreState(TypedDict):
     data: Optional[str]
     file_path: Optional[str]
@@ -63,6 +67,7 @@ def keep_first_error(current_error: Optional[str], new_error: Optional[str]) -> 
 # --- LangGraph State Definition ---
 class State(TypedDict):
     file_name: str
+    file_paths:list[str]
     boq_collection: str
     specs_collection: str # Derived from boq_collection
     submittal_text: str

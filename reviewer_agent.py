@@ -51,7 +51,7 @@ LOGO_PATH = "logo.png"
 def initialize_gemini_model():
     """Initialize and return the Google Gemini model."""
     try:
-        from langchain_google_genai import ChatGoogleGenerativeAI
+        from langchain_google_genai.chat_models import ChatGoogleGenerativeAI
         model = ChatGoogleGenerativeAI(temperature=0.7, model=GEMINI_MODEL_NAME,google_api_key=GOOGLE_API_KEY)
         logger.info(f"Successfully initialized Gemini model: {GEMINI_MODEL_NAME}")
         return model
@@ -107,11 +107,11 @@ def datasheet_extractor(state: State) -> Dict[str, Any]:
     Returns:
         Dictionary with extracted text or error message
     """
-    logger.info(f"Extracting text from datasheet: {state['file_name']}")
+    logger.info(f"Extracting text from datasheet")
     st.info("Extracting text from datasheet...")
     
-    file_name = state["file_name"]
-    submittal_text = datasheet_content(file_name, st.session_state.gemini_model)
+    file_paths = state["file_paths"]
+    submittal_text = datasheet_content(file_paths,logger)
     
     if "Error:" in submittal_text:
         error_msg = submittal_text.replace('Error: ', '')
@@ -292,6 +292,7 @@ def report_generator(state: State) -> Dict[str, Any]:
                 boq_retrieved_docs, 
                 specs_retrieved_docs, 
                 submittal_text,
+                str(st.session_state.input_features),
                 st.session_state.gemini_model
             )
             logger.info("Report generation successful")
@@ -604,18 +605,29 @@ def submittal_analysis_page(worker: Optional[Any]) -> None:
     st.title("Submittal Review Agent")
     st.markdown("Enter the file path of the submittal datasheet to generate a review report.")
     
-    uploaded_file = st.file_uploader("Choose a datasheet file", type=["pdf"])
+    uploaded_files = st.file_uploader("Choose a datasheet file", accept_multiple_files=True, type=["pdf", "csv", "json", "txt", "docx","xlsx", "png", "jpg", "jpeg"])
+    input_features = st.text_input("Comparison Features", placeholder="enter the comparison features...")
+    if input_features != None or input_features != "":
+        model_with_structured_output = initialize_gemini_model().with_structured_output(ComparisonFeatures)
+        st.session_state.input_features = model_with_structured_output.invoke(input_features).features
+    else:
+        st.session_state.input_features = ""
+    
     
     # Analysis button
-    button_disabled = (worker is None or uploaded_file is None)
+    button_disabled = (worker is None or uploaded_files is None)
     if st.button("Analyze Submittal", key="analyze_button", disabled=button_disabled):
-        if uploaded_file is not None:
+        if uploaded_files is not None:
             # Use tempfile to handle temporary file
-            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1], dir="temp") as temp_file:
-                temp_file.write(uploaded_file.getbuffer())
-                file_path = temp_file.name
-            
-            logger.info(f"Starting analysis for file: {file_path}")
+            file_paths = []
+            for file in uploaded_files:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.name)[1], dir="temp") as temp_file:
+                    temp_file.write(file.getbuffer())
+                    file_path = temp_file.name
+                    file_paths.append(file_path)
+
+                
+            logger.info(f"Starting analysis for datasheet")
         
             if not os.path.exists(file_path):
                 logger.error(f"File not found: {file_path}")
@@ -628,10 +640,10 @@ def submittal_analysis_page(worker: Optional[Any]) -> None:
                 return
             
             else:
-                st.write(f"Starting analysis for: {file_path}")
+                st.write(f"Starting analysis")
                 # Prepare the initial state
                 initial_state = {
-                    "file_name": file_path,
+                    "file_paths": file_paths, # Pass the list of file paths
                     "specs_collection": "specifications", 
                     "error_message": None
                 }
@@ -681,15 +693,15 @@ def submittal_analysis_page(worker: Optional[Any]) -> None:
                     )
 
                     # Clean up temp file
-                    
-                    if os.path.exists(file_path):
-                        try:
-                            os.remove(file_path)
-                            logger.info(f"Removed temporary file: {file_path}")
-                            
-                        except Exception as cleanup_error:
-                            
-                            logger.error(f"Error cleaning up Temp folder: {cleanup_error}")
+                    for file_path in file_paths:
+                        if os.path.exists(file_path):
+                            try:
+                                os.remove(file_path)
+                                logger.info(f"Removed temporary file: {file_path}")
+                                
+                            except Exception as cleanup_error:
+                                
+                                logger.error(f"Error cleaning up Temp folder: {cleanup_error}")
                     
                 except Exception as e:
                     logger.error(f"Unexpected error during graph execution: {e}", exc_info=True)
@@ -719,11 +731,13 @@ def data_storing_page(archiver: Optional[Any]) -> None:
     if st.button("Archive File", key="archive_button", disabled=button_disabled):
         if uploaded_file is not None:
             # Use tempfile to handle temporary file
+            
             with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1], dir="temp") as temp_file:
                 temp_file.write(uploaded_file.getbuffer())
                 file_path = temp_file.name
 
             logger.info(f"Starting archiving process for file: {file_path}")
+            
 
             if not os.path.exists(file_path):
                 logger.error(f"Temporary file not found after creation: {file_path}")

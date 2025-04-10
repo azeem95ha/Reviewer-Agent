@@ -1,3 +1,5 @@
+from logging import Logger
+import os
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import json
@@ -10,6 +12,8 @@ from chromadb.utils import embedding_functions
 from classes import SubmittalPage, BOQItem, ItemVariant
 from pydantic import ValidationError
 from typing import List
+import requests, time
+from dotenv import load_dotenv
 
 # --- DOCS IMPORTS --
 from docx import Document
@@ -22,6 +26,10 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 import markdown
 from bs4 import BeautifulSoup
+
+load_dotenv()
+
+EXTRACTOR_API_KEY = os.getenv("EXTRACTOR_API_KEY")
 
 
 def read_pdf(file_path):
@@ -185,28 +193,60 @@ def retrieve_from_vectorstore(persistent_path:str, boq_collection_name: str, spe
   query_specs_text = [results_specs['documents'][0][i] for i in range(len(results_specs['documents'][0]))]
   return query_boq_text, query_specs_text
 
-def datasheet_content(data_sheet_file_path, model):
-  submittal_data_text = PyPDFLoader(data_sheet_file_path).load()
-  submittal_data_text = [submittal_data_text[i].page_content for i in range(len(submittal_data_text))]
-  submittal_data_text = "\n".join(submittal_data_text)
+def extract_content(path_to_file, extractor_api_key):
+  url = "https://api.va.landing.ai/v1/tools/agentic-document-analysis"
+  files = {
+    "image": open(path_to_file, "rb")
+    # OR, for PDF
+    # "pdf": open("{{path_to_file}}", "rb")
+  }
+  headers = {
+    "Authorization": f"Basic {extractor_api_key}",
+  }
+  response = requests.post(url, files=files, headers=headers)
 
-  data_sheet_summarize_query = """
-  You are a helpful assistant, I want you to summarize the following text and return only the summarized text without any additional texts in the beginning or at the end.
+  return response.json()
 
-  Text : {text}
+def datasheet_content(data_sheet_file_paths:list[str],logger:Logger):
+    extracted_texts = []
+    for idx,path in enumerate(data_sheet_file_paths):
+        if path.split(".")[-1] == "pdf":
+            submittal_data_text = PyPDFLoader(path).load()
+            text_list = [str((submittal_data_text[i].metadata.get('page')+1,submittal_data_text[i].page_content)) for i in range(len(submittal_data_text))]
+            extracted_texts.append("\n".join(text_list))
+            logger.info(f"Completed Extraction for {path}")
+        elif path.split(".")[-1] in ['png','jpg','jpeg','gif','bmp']:
+            try:
+                json_result = extract_content(path,EXTRACTOR_API_KEY)
+                extracted_pages = "\n".join([json_result['data']['chunks'][i]['text'] for i in range(len(json_result['data']['chunks']))])
+                submittal_data_text = f"Page {idx+1}:\n{extracted_pages}"
+                extracted_texts.append(submittal_data_text)
+                logger.info(f"Completed Extraction for {path}")
 
-  Note that you should extract the following information from the text:
-  1-specifications
-  2-design characteristics
-  3-general features
-  4-data sheets
-  5-any important or valuable info
+            except Exception as e:
+                return f"Error: {e}"
+        else:
+            return "Error: Unsupported file type"
+        
 
-  **Do not miss any information ( the summarization purpose is to organize the information in the datasheet for further processing
-  """.format(text = "\n".join(submittal_data_text))
 
-  summarized_text = model.invoke(data_sheet_summarize_query).content
-  return submittal_data_text
+    '''data_sheet_summarize_query = """
+    You are a helpful assistant, I want you to summarize the following text and return only the summarized text without any additional texts in the beginning or at the end.
+
+    Text : {text}
+
+    Note that you should extract the following information from the text:
+    1-specifications
+    2-design characteristics
+    3-general features
+    4-data sheets
+    5-any important or valuable info
+
+    **Do not miss any information ( the summarization purpose is to organize the information in the datasheet for further processing
+    """.format(text = "\n".join(submittal_data_text))
+
+    summarized_text = model.invoke(data_sheet_summarize_query).content'''
+    return "\n".join(extracted_texts)
 
 def group_boq_items(df: pd.DataFrame, delimiter: str = "-") -> pd.core.groupby.DataFrameGroupBy:
     """Groups DataFrame rows by item number, using regex for more robust matching."""
@@ -307,10 +347,10 @@ def extract_boq_data(df_group: pd.core.groupby.DataFrameGroupBy) -> List[BOQItem
 
     return boq_item_list
 
-def generate_report(boq_retrieved_docs,specs_retrieved_docs, summarized_text, model):
+def generate_report(boq_retrieved_docs,specs_retrieved_docs, summarized_text,comparison_features, model):
   with open("prompt_gallery\generate_report.txt","r") as f:
     query = f.read()
-  query = query.format(specs = specs_retrieved_docs, boq = boq_retrieved_docs, submittal_text = summarized_text)
+  query = query.format(specs = specs_retrieved_docs, boq = boq_retrieved_docs, submittal_text = summarized_text,comparison_features = comparison_features)
   model_response = model.invoke(query)
   return model_response
 
