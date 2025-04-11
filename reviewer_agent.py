@@ -613,11 +613,14 @@ def submittal_analysis_page(worker: Optional[Any]) -> None:
     button_disabled = (worker is None or uploaded_files is None or input_features is "")
     if st.button("Analyze Submittal", key="analyze_button", disabled=button_disabled):
         if uploaded_files is not None:
-            if input_features is not None:
+            if input_features is not "":
                 model_with_structured_output = initialize_gemini_model().with_structured_output(ComparisonFeatures)
-                st.session_state.input_features = model_with_structured_output.invoke(str(input_features)).features
-            else:
-                st.session_state.input_features = ""
+                structured_input_features = model_with_structured_output.invoke(str(input_features))
+                if structured_input_features != None:
+                    st.session_state.input_features = structured_input_features.features
+                else:
+                    st.session_state.input_features = ""
+        
             
             # Use tempfile to handle temporary file
             file_paths = []
