@@ -612,18 +612,18 @@ def submittal_analysis_page(worker: Optional[Any]) -> None:
     )
     input_features = st.text_input("Comparison Features")
 
-    button_disabled = not worker or not uploaded_files or not input_features.strip()
+    button_disabled = (not worker or not uploaded_files or input_features.strip()=="")
 
     if st.button("Analyze Submittal", key="analyze_button", disabled=button_disabled):
         try:
             # Step 1: Extract input features
-            st.session_state.input_features = ""
+            #st.session_state.input_features = ""
             if input_features.strip():
                 model = initialize_gemini_model().with_structured_output(ComparisonFeatures)
-                st.session_state.input_features = model.invoke(input_features).features
+                st.session_state.input_features = model.invoke(str(input_features)).features
                 logger.info(f"Parsed input features: {st.session_state.input_features}")
             else:
-                st.warning("Please enter comparison features.")
+                st.session_state.input_features = ""
                 return
 
             # Step 2: Save uploaded files to temp directory
