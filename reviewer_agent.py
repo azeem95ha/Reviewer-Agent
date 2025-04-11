@@ -633,7 +633,7 @@ def submittal_analysis_page(worker: Optional[Any]) -> None:
                     temp_file.write(file.getbuffer())
                     file_paths.append(temp_file.name)
                     logger.info(f"Saved uploaded file: {temp_file.name}")
-
+            st.session_state.file_paths = file_paths
             # Step 3: Validate and prepare initial state
             if not file_paths:
                 st.error("No valid files to analyze.")
