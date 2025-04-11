@@ -606,18 +606,19 @@ def submittal_analysis_page(worker: Optional[Any]) -> None:
     st.markdown("Enter the file path of the submittal datasheet to generate a review report.")
     
     uploaded_files = st.file_uploader("Choose a datasheet file", accept_multiple_files=True, type=["pdf", "csv", "json", "txt", "docx","xlsx", "png", "jpg", "jpeg"])
-    input_features = st.text_input("Comparison Features", placeholder="enter the comparison features...")
-    if input_features != None or input_features != "":
-        model_with_structured_output = initialize_gemini_model().with_structured_output(ComparisonFeatures)
-        st.session_state.input_features = model_with_structured_output.invoke(input_features).features
-    else:
-        st.session_state.input_features = ""
+    input_features = st.text_input(label="Comparison Features")
     
     
     # Analysis button
-    button_disabled = (worker is None or uploaded_files is None)
+    button_disabled = (worker is None or uploaded_files is None or input_features is "")
     if st.button("Analyze Submittal", key="analyze_button", disabled=button_disabled):
         if uploaded_files is not None:
+            if input_features is not None:
+                model_with_structured_output = initialize_gemini_model().with_structured_output(ComparisonFeatures)
+                st.session_state.input_features = model_with_structured_output.invoke(str(input_features)).features
+            else:
+                st.session_state.input_features = ""
+            
             # Use tempfile to handle temporary file
             file_paths = []
             for file in uploaded_files:
