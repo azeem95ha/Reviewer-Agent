@@ -596,111 +596,122 @@ def setup_sidebar() -> None:
 
 def submittal_analysis_page(worker: Optional[Any]) -> None:
     """
-    Renders the Streamlit interface for submittal analysis using a LangGraph worker.
-
+    Render the submittal analysis page interface.
+    
     Args:
-        worker (Optional[Any]): The compiled LangGraph worker used to process the analysis.
+        worker: The compiled LangGraph worker
     """
     st.badge("Analysis Agent", icon=":material/analytics:")
     st.title("Submittal Review Agent")
-    st.markdown("Upload submittal datasheet files and enter comparison features to generate a review report.")
-
-    uploaded_files = st.file_uploader(
-        "Choose datasheet files",
-        accept_multiple_files=True,
-        type=["pdf", "csv", "json", "txt", "docx", "xlsx", "png", "jpg", "jpeg"]
-    )
-    input_features = st.text_input("Comparison Features")
-
-    button_disabled = (not worker or not uploaded_files)
-
+    st.markdown("Enter the file path of the submittal datasheet to generate a review report.")
+    
+    uploaded_files = st.file_uploader("Choose a datasheet file", accept_multiple_files=True, type=["pdf", "csv", "json", "txt", "docx","xlsx", "png", "jpg", "jpeg"])
+    input_features = st.text_input(label="Comparison Features")
+    
+    
+    # Analysis button
+    button_disabled = (worker is None or uploaded_files is None or input_features is "")
     if st.button("Analyze Submittal", key="analyze_button", disabled=button_disabled):
-        try:
-            # Step 1: Extract input features
-            #st.session_state.input_features = ""
-            if input_features.strip() != "":
-                model = initialize_gemini_model().with_structured_output(ComparisonFeatures)
-                st.session_state.input_features = model.invoke(str(input_features)).features
-                logger.info(f"Parsed input features: {st.session_state.input_features}")
+        if uploaded_files is not None:
+            if input_features is not None:
+                model_with_structured_output = initialize_gemini_model().with_structured_output(ComparisonFeatures)
+                st.session_state.input_features = model_with_structured_output.invoke(str(input_features)).features
             else:
                 st.session_state.input_features = ""
-                return
-
-            # Step 2: Save uploaded files to temp directory
+            
+            # Use tempfile to handle temporary file
             file_paths = []
             for file in uploaded_files:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.name)[1], dir="temp") as temp_file:
                     temp_file.write(file.getbuffer())
-                    file_paths.append(temp_file.name)
-                    logger.info(f"Saved uploaded file: {temp_file.name}")
-            st.session_state.file_paths = file_paths
-            # Step 3: Validate and prepare initial state
-            if not file_paths:
-                st.error("No valid files to analyze.")
+                    file_path = temp_file.name
+                    file_paths.append(file_path)
+
+                
+            logger.info(f"Starting analysis for datasheet")
+        
+            if not os.path.exists(file_path):
+                logger.error(f"File not found: {file_path}")
+                st.error(f"Error: File not found at the provided path: {file_path}")
                 return
-
-            initial_state = {
-                "file_paths": file_paths,
-                "specs_collection": "specifications",
-                "error_message": None
-            }
-
-            # Step 4: Run LangGraph analysis
-            with st.spinner("Running analysis graph... Please wait."):
-                st.session_state.generated_report = None
-                st.session_state.chat_history = []
-
-                logger.info("Invoking analysis worker...")
-                final_state = worker.invoke(initial_state)
-
-                error_msg = final_state.get("error_message")
-                final_report_text = final_state.get("final_report", "No report generated.")
-
-                if error_msg:
-                    logger.error(f"Analysis failed: {error_msg}")
-                    st.error(f"Analysis failed: {error_msg}")
-                else:
-                    # Clean markdown if needed
-                    if hasattr(final_report_text, 'content'):
-                        final_report_text = final_report_text.content.strip("```markdown").strip("```").strip()
-
-                    logger.info("Analysis completed successfully")
-                    st.subheader("Analysis Complete")
-                    st.session_state.generated_report = final_report_text
-
-                    # Display final report
+            
+            elif worker is None:
+                logger.error("Analysis graph is not compiled")
+                st.error("Analysis graph is not compiled. Cannot run analysis.")
+                return
+            
+            else:
+                st.write(f"Starting analysis")
+                # Prepare the initial state
+                initial_state = {
+                    "file_paths": file_paths, # Pass the list of file paths
+                    "specs_collection": "specifications", 
+                    "error_message": None
+                }
+                
+                try:
+                    with st.spinner("Running analysis graph... Please wait."):
+                        # Clear previous report and chat history
+                        st.session_state.generated_report = None
+                        st.session_state.chat_history = []
+                        
+                        # Run the graph
+                        logger.info("Invoking analysis worker")
+                        final_state = worker.invoke(initial_state)
+                        
+                        # Check for errors
+                        if final_state.get("error_message"):
+                            error_msg = final_state.get("error_message")
+                            logger.error(f"Analysis failed: {error_msg}")
+                            st.error(f"Analysis failed: {error_msg}")
+                            final_report_text = final_state.get("final_report", "Report generation failed due to error.")
+                        else:
+                            final_report_text = final_state.get("final_report", "Report could not be generated.")
+                            # Handle different report formats
+                            if hasattr(final_report_text, 'content'):
+                                final_report_text = final_report_text.content.strip('```markdown').strip("```").strip()
+                            
+                            logger.info("Analysis completed successfully")
+                            st.subheader("Analysis Complete")
+                            # Store report for chat page
+                            st.session_state.generated_report = final_report_text
+                    
+                    # Display the report
                     st.markdown("---")
                     st.subheader("Generated Report")
                     st.markdown(final_report_text)
-
-                    # Offer downloadable .docx version
+                    
+                    # Create downloadable report
                     docx_buffer = BytesIO()
                     create_docx_from_markdown(final_report_text, docx_buffer)
                     docx_buffer.seek(0)
-
+                    
                     st.sidebar.download_button(
                         label="Download Report as DOCX",
                         data=docx_buffer,
                         file_name="report.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     )
 
-        except Exception as e:
-            logger.error(f"Unexpected error during analysis: {e}", exc_info=True)
-            st.error("An unexpected error occurred during analysis.")
-            st.exception(e)
-
-        finally:
-            # Step 5: Clean up temporary files
-            for file_path in file_paths:
-                if os.path.exists(file_path):
-                    try:
-                        os.remove(file_path)
-                        logger.info(f"Removed temporary file: {file_path}")
-                    except Exception as cleanup_error:
-                        logger.error(f"Error cleaning up file {file_path}: {cleanup_error}")
-    elif not worker:
-        st.error("Analysis engine is not initialized. Please check configuration or API keys.")
+                    # Clean up temp file
+                    for file_path in file_paths:
+                        if os.path.exists(file_path):
+                            try:
+                                os.remove(file_path)
+                                logger.info(f"Removed temporary file: {file_path}")
+                                
+                            except Exception as cleanup_error:
+                                
+                                logger.error(f"Error cleaning up Temp folder: {cleanup_error}")
+                    
+                except Exception as e:
+                    logger.error(f"Unexpected error during graph execution: {e}", exc_info=True)
+                    st.error(f"An unexpected error occurred during graph execution: {e}")
+                    st.exception(e)
+        else:
+            st.warning("Please upload a file.")
+    elif worker is None:
+        st.error("Analysis engine could not be initialized. Please check API keys and configurations.")
 
 def data_storing_page(archiver: Optional[Any]) -> None:
     """
