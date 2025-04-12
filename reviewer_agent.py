@@ -692,7 +692,7 @@ def submittal_analysis_page(worker: Optional[Any]) -> None:
                     st.sidebar.download_button(
                         label="Download Report as DOCX",
                         data=docx_buffer,
-                        file_name="report.docx",
+                        file_name="./report.docx",
                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     )
 
