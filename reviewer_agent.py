@@ -85,13 +85,11 @@ def initialize_session_state():
     if st.session_state.gemini_model:
         tools = [ChooseBOQ]
         st.session_state.model_with_tools = st.session_state.gemini_model.bind_tools(tools, tool_choice="ChooseBOQ")
-        st.session_state.model_with_structured_output = st.session_state.gemini_model.with_structured_output(Title)
         logger.info("Successfully bound tools to Gemini model")
     else:
         logger.error("Gemini Model not initialized. Cannot bind tools.")
         st.error("Gemini Model not initialized. Cannot bind tools.")
         st.session_state.model_with_tools = None
-        st.session_state.model_with_structured_output = None
 
 #####################################
 # LangGraph Node Functions
