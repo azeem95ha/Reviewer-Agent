@@ -610,7 +610,7 @@ def submittal_analysis_page(worker: Optional[Any]) -> None:
     
     
     # Analysis button
-    button_disabled = (worker is None or uploaded_files is None or input_features is "")
+    button_disabled = (worker is None or uploaded_files is None)
     if st.button("Analyze Submittal", key="analyze_button", disabled=button_disabled):
         if uploaded_files is not None:
             if input_features is not "":
