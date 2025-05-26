@@ -32,7 +32,7 @@ Compare the provided material submittal text against the given project specifica
 3.  **Detailed Comparison Table:**
     *   Create a clear, well-organized comparison table.
     *   **Feature Selection:**
-        *   If `comparison_features` were provided by the user, use those specific features/requirements as the rows for this table.
+        *   If `comparison_features` were provided by the user, use ONLY those specific features/requirements as the rows for this table.
         *   If `comparison_features` were *not* provided, select the most significant requirements identified during the extraction phase (e.g., material type, grade, primary dimensions, key performance criteria, specified standards, BOQ item description elements) to form the rows of the table.
     *   **Table Columns:**
         *   **Requirement/Feature:** The specific aspect being compared (guided by `comparison_features` if provided, otherwise key extracted items).
@@ -58,7 +58,7 @@ Compare the provided material submittal text against the given project specifica
 
 4.  **Compliance Analysis and Percentage Calculation:**
     *   Calculate the **Overall Compliance Percentage**. This percentage is based *only* on the rows in the comparison table where "Overall Compliance" is "Yes", "No", or "Partial". Exclude rows marked "N/A".
-    *   **Calculation:** `(Number of 'Yes' rows) / (Total number of rows with 'Yes', 'No', or 'Partial' Overall Compliance) * 100%`
+    *   **Calculation:** `(Number of 'Yes' or 'Partial' rows) / (Total number of rows with 'Yes', 'No', or 'Partial' Overall Compliance) * 100%`
     *   If there are no rows with "Yes", "No", or "Partial" (e.g., all are "N/A"), the percentage is 0%.
     *   Briefly explain the reasoning behind the percentage, referencing the table.
 
