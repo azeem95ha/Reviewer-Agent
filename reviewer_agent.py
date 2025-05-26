@@ -35,8 +35,8 @@ logger = logging.getLogger("submittal_review")
 
 # Load environment variables
 load_dotenv()
-GEMINI_MODEL_NAME = st.secrets.get("GEMINI_MODEL_NAME")
-GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY")
+GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # Constants
 VECTORSTORE_PATH = "vectorestores/chromadb"
@@ -366,26 +366,27 @@ def setup_chat_interface(report_text: str) -> None:
     
     # Image upload section
     with st.expander("Upload an image to discuss", expanded=False):
-        uploaded_image = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"], key="chat_image_uploader")
+        uploaded_images = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"], key="chat_image_uploader", accept_multiple_files=True)
         
-        if uploaded_image is not None:
-            # Display the uploaded image
-            image = PIL.Image.open(uploaded_image)
-            st.image(image, caption="Uploaded Image", use_container_width=True)
-            
-            # Process and store the image
-            image_id = f"img_{len(st.session_state.chat_images) + 1}"
-            
-            # Save image to session state
-            st.session_state.chat_images[image_id] = {
+        if uploaded_images is not None:
+            for uploaded_image in uploaded_images:
+                # Display the uploaded image
+                image = PIL.Image.open(uploaded_image)
+                st.image(image, caption=f"Uploaded Image: {uploaded_image.name}", use_container_width=True, width = 100)
+
+                # Process and store the image
+                image_id = f"img_{len(st.session_state.chat_images) + 1}"
+
+                # Save image to session state
+                st.session_state.chat_images[image_id] = {
                 "image": image,
                 "filename": uploaded_image.name
-            }
-            
-            st.success(f"Image uploaded successfully! You can now ask questions about this image.")
-            
-            # Add image reference button
-            if st.button("Reference this image in chat"):
+                }
+
+                st.success(f"Image '{uploaded_image.name}' uploaded successfully! You can now ask questions about this image.")
+
+            # Add image reference button (appears only once if multiple files are uploaded)
+            if uploaded_images and st.button("Reference all uploaded images in chat"):
                 # Create a special message referencing the image
                 image_reference = f"[Referencing uploaded image: {uploaded_image.name}]"
                 st.session_state.chat_history.append(HumanMessage(content=image_reference))
