@@ -1,16 +1,16 @@
-import os
-from langchain_google_genai.chat_models import ChatGoogleGenerativeAI
-from classes import ComparisonFeatures
-from dotenv import load_dotenv
+from PIL import Image, ImageOps
 
-load_dotenv()
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+# Load the original image
+original_path = 'page.jpg'
+image = Image.open(original_path).convert("RGBA")
 
-model = ChatGoogleGenerativeAI(temperature=0.7, model="gemini-2.0-flash", api_key=GOOGLE_API_KEY)
+# Create a black background image with the same size
+black_bg = Image.new("RGBA", image.size)
 
-model_with_structured_output = model.with_structured_output(ComparisonFeatures)
+# Composite the original image onto the black background
+new_image = Image.alpha_composite(black_bg, image)
 
-results = model_with_structured_output.invoke(" features:" \
-"sprinkler type 1, sprinkler type 2, K-Factor, Temperature rating, Activation Mechanism, Response Time, Compliance Standards")
-
-print(str(results.features))
+# Save the result
+output_path = 'gripx_logo_black_background.png'
+new_image.save(output_path)
+output_path
