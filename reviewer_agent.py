@@ -51,7 +51,7 @@ LOGO_PATH = "logo.png"
 def initialize_gemini_model():
     """Initialize and return the Google Gemini model."""
     try:
-        from langchain_google_genai.chat_models import ChatGoogleGenerativeAI
+        from langchain_google_genai import ChatGoogleGenerativeAI
         model = ChatGoogleGenerativeAI(temperature=0.7, model=GEMINI_MODEL_NAME,google_api_key=GOOGLE_API_KEY)
         logger.info(f"Successfully initialized Gemini model: {GEMINI_MODEL_NAME}")
         return model
@@ -612,7 +612,7 @@ def submittal_analysis_page(worker: Optional[Any]) -> None:
     button_disabled = (worker is None or uploaded_files is None)
     if st.button("Analyze Submittal", key="analyze_button", disabled=button_disabled):
         if uploaded_files is not None:
-            if input_features is not "":
+            if input_features != "":
                 model_with_structured_output = initialize_gemini_model().with_structured_output(ComparisonFeatures)
                 structured_input_features = model_with_structured_output.invoke(str(input_features))
                 if structured_input_features != None:
